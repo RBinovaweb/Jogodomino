@@ -84,11 +84,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-let salaAtual = "";
-let lado = "";
-let mao = [];
+let salaAtual="";
+let meuNome="";
+let lado="";
+let minhaMao=[];
 
-function gerar(){
+function gerarPecas(){
 let p=[];
 for(let i=0;i<=6;i++){
 for(let j=i;j<=6;j++){
@@ -100,19 +101,19 @@ return p.sort(()=>Math.random()-0.5);
 
 window.criar = async function(){
 
-const nome=document.getElementById("nome").value.trim();
-if(!nome) return alert("Digite seu nome");
+meuNome=document.getElementById("nome").value.trim();
+if(!meuNome) return alert("Digite seu nome");
 
 lado="j1";
 salaAtual=Math.random().toString(36).substring(2,6).toUpperCase();
 document.getElementById("sala").value=salaAtual;
 
-let pecas=gerar();
+let pecas=gerarPecas();
 let mao1=pecas.splice(0,7);
 let mao2=pecas.splice(0,7);
 
 await set(ref(db,"salas/"+salaAtual),{
-nome1:nome,
+nome1:meuNome,
 nome2:null,
 j1:mao1,
 j2:mao2,
@@ -125,19 +126,17 @@ escutar();
 
 window.entrar = async function(){
 
-const nome=document.getElementById("nome").value.trim();
-if(!nome) return alert("Digite seu nome");
+meuNome=document.getElementById("nome").value.trim();
+if(!meuNome) return alert("Digite seu nome");
 
 salaAtual=document.getElementById("sala").value.trim();
-if(!salaAtual) return alert("Digite a sala");
+if(!salaAtual) return alert("Digite o código da sala");
 
 const snap=await get(ref(db,"salas/"+salaAtual));
 if(!snap.exists()) return alert("Sala não encontrada");
 
-lado="j2";
-
 await update(ref(db,"salas/"+salaAtual),{
-nome2:nome
+nome2:meuNome
 });
 
 escutar();
@@ -146,6 +145,7 @@ escutar();
 function escutar(){
 
 onValue(ref(db,"salas/"+salaAtual),(snap)=>{
+
 let d=snap.val();
 if(!d) return;
 
@@ -157,10 +157,20 @@ document.getElementById("status").innerText="Esperando jogador 2...";
 return;
 }
 
-mao=d[lado];
+// 🔥 IDENTIFICA AUTOMATICAMENTE PELO NOME
+if(meuNome===d.nome1){
+lado="j1";
+} else if(meuNome===d.nome2){
+lado="j2";
+} else {
+document.getElementById("status").innerText="Erro de identificação";
+return;
+}
 
-if(!mao){
-document.getElementById("status").innerText="Erro ao carregar mão";
+minhaMao=d[lado];
+
+if(!minhaMao){
+document.getElementById("status").innerText="Erro ao carregar peças";
 return;
 }
 
@@ -172,6 +182,11 @@ document.getElementById("status").innerText="Sua vez";
 }else{
 document.getElementById("status").innerText="Vez do adversário";
 }
+
+if(minhaMao.length===0){
+alert("🏆 Você venceu!");
+}
+
 });
 }
 
@@ -189,7 +204,7 @@ div.appendChild(el);
 function renderMao(){
 const div=document.getElementById("mao");
 div.innerHTML="";
-mao.forEach((p,i)=>{
+minhaMao.forEach((p,i)=>{
 let el=document.createElement("div");
 el.className="peca";
 el.innerText=p[0]+"|"+p[1];
@@ -205,14 +220,14 @@ let d=snap.val();
 if(d.vez!==lado) return;
 
 let mesa=d.mesa;
-let peca=mao[i];
+let peca=minhaMao[i];
 
 if(mesa.length===0 || mesa[mesa.length-1][1]===peca[0]){
 mesa.push(peca);
-mao.splice(i,1);
+minhaMao.splice(i,1);
 
 update(ref(db,"salas/"+salaAtual),{
-[lado]:mao,
+[lado]:minhaMao,
 mesa:mesa,
 vez: lado==="j1"?"j2":"j1"
 });

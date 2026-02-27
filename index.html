@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dominó Online Pro</title>
+
+<style>
+body{
+margin:0;
+font-family:Arial, sans-serif;
+background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+color:#fff;
+text-align:center;
+}
+
+header{
+padding:15px;
+font-size:22px;
+font-weight:bold;
+background:rgba(0,0,0,0.3);
+}
+
+.container{
+padding:15px;
+}
+
+button{
+padding:10px 18px;
+border:none;
+border-radius:8px;
+background:#00c6ff;
+color:#000;
+font-weight:bold;
+cursor:pointer;
+margin:5px;
+}
+
+input{
+padding:10px;
+border-radius:8px;
+border:none;
+margin:5px;
+}
+
+#mesa{
+min-height:80px;
+display:flex;
+justify-content:center;
+flex-wrap:wrap;
+margin:20px 0;
+}
+
+.peca{
+background:#fff;
+color:#000;
+padding:10px 14px;
+margin:5px;
+border-radius:8px;
+font-weight:bold;
+cursor:pointer;
+}
+
+#mao{
+display:flex;
+justify-content:center;
+flex-wrap:wrap;
+margin-top:15px;
+}
+
+.status{
+margin-top:10px;
+font-size:18px;
+font-weight:bold;
+}
+
+.info{
+margin-top:5px;
+font-size:14px;
+opacity:0.8;
+}
+</style>
+</head>
+<body>
+
+<header>🎲 Dominó Online Pro</header>
+
+<div class="container">
+
+<input id="salaInput" placeholder="Código da sala">
+<button onclick="criarSala()">Criar Sala</button>
+<button onclick="entrarSala()">Entrar</button>
+
+<div class="info" id="codigoSala"></div>
+<div class="status" id="status"></div>
+
+<h3>Mesa</h3>
+<div id="mesa"></div>
+
+<h3>Sua Mão</h3>
+<div id="mao"></div>
+
+<div class="info" id="pecasAdversario"></div>
+
+</div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBQqW2RRzy44R-CzgsdGHWBv0rr3ZVL-Ls",
+  authDomain: "online-f415d.firebaseapp.com",
+  databaseURL: "https://online-f415d-default-rtdb.firebaseio.com",
+  projectId: "online-f415d",
+  storageBucket: "online-f415d.firebasestorage.app",
+  messagingSenderId: "303566606960",
+  appId: "1:303566606960:web:1006d0865cacbe6b1e9ab5"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+let sala="";
+let jogador="";
+let minhaMao=[];
+
+function gerarPecas(){
+let pecas=[];
+for(let i=0;i<=6;i++){
+for(let j=i;j<=6;j++){
+pecas.push([i,j]);
+}
+}
+return pecas.sort(()=>Math.random()-0.5);
+}
+
+window.criarSala = function(){
+sala=Math.random().toString(36).substring(2,7).toUpperCase();
+jogador="jogador1";
+document.getElementById("salaInput").value=sala;
+document.getElementById("codigoSala").innerText="Sala: "+sala;
+
+let pecas=gerarPecas();
+let mao1=pecas.splice(0,7);
+let mao2=pecas.splice(0,7);
+
+set(ref(db,"salas/"+sala),{
+jogador1:mao1,
+jogador2:mao2,
+mesa:[],
+vez:"jogador1",
+status:"jogando"
+});
+
+escutar();
+}
+
+window.entrarSala = function(){
+sala=document.getElementById("salaInput").value;
+jogador="jogador2";
+document.getElementById("codigoSala").innerText="Sala: "+sala;
+escutar();
+}
+
+function escutar(){
+onValue(ref(db,"salas/"+sala),(snap)=>{
+let data=snap.val();
+if(!data) return;
+
+minhaMao=data[jogador]||[];
+renderMesa(data.mesa);
+renderMao();
+
+document.getElementById("pecasAdversario").innerText=
+"Adversário tem "+(data[jogador==="jogador1"?"jogador2":"jogador1"]||[]).length+" peças";
+
+if(data.vez===jogador){
+document.getElementById("status").innerText="Sua vez";
+}else{
+document.getElementById("status").innerText="Aguardando adversário...";
+}
+
+if(minhaMao.length===0){
+alert("🏆 Você venceu!");
+}
+});
+}
+
+function renderMesa(mesa){
+let div=document.getElementById("mesa");
+div.innerHTML="";
+mesa.forEach(p=>{
+let el=document.createElement("div");
+el.className="peca";
+el.innerText=p[0]+"|"+p[1];
+div.appendChild(el);
+});
+}
+
+function renderMao(){
+let div=document.getElementById("mao");
+div.innerHTML="";
+minhaMao.forEach((p,i)=>{
+let el=document.createElement("div");
+el.className="peca";
+el.innerText=p[0]+"|"+p[1];
+el.onclick=()=>jogar(i);
+div.appendChild(el);
+});
+}
+
+function jogar(index){
+let salaRef=ref(db,"salas/"+sala);
+
+onValue(salaRef,(snap)=>{
+let data=snap.val();
+if(data.vez!==jogador) return;
+
+let mesa=data.mesa;
+let peca=minhaMao[index];
+
+if(mesa.length===0||mesa[mesa.length-1][1]===peca[0]){
+mesa.push(peca);
+minhaMao.splice(index,1);
+
+update(salaRef,{
+[jogador]:minhaMao,
+mesa:mesa,
+vez:jogador==="jogador1"?"jogador2":"jogador1"
+});
+}
+},{onlyOnce:true});
+}
+
+</script>
+
+</body>
+</html>

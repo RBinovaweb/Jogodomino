@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dominó Online Pro</title>
+<title>Dominó Online</title>
 
 <style>
 body{
 margin:0;
-font-family:Arial, sans-serif;
-background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+font-family:Arial;
+background:linear-gradient(135deg,#141e30,#243b55);
 color:#fff;
 text-align:center;
 }
@@ -25,17 +25,6 @@ background:rgba(0,0,0,0.3);
 padding:15px;
 }
 
-button{
-padding:10px 18px;
-border:none;
-border-radius:8px;
-background:#00c6ff;
-color:#000;
-font-weight:bold;
-cursor:pointer;
-margin:5px;
-}
-
 input{
 padding:10px;
 border-radius:8px;
@@ -43,56 +32,55 @@ border:none;
 margin:5px;
 }
 
-#mesa{
-min-height:80px;
+button{
+padding:10px 18px;
+border:none;
+border-radius:8px;
+background:#00d4ff;
+font-weight:bold;
+cursor:pointer;
+margin:5px;
+}
+
+#mesa, #mao{
 display:flex;
 justify-content:center;
 flex-wrap:wrap;
-margin:20px 0;
+margin-top:15px;
+min-height:60px;
 }
 
 .peca{
 background:#fff;
 color:#000;
-padding:10px 14px;
+padding:10px;
 margin:5px;
-border-radius:8px;
+border-radius:6px;
 font-weight:bold;
 cursor:pointer;
 }
 
-#mao{
-display:flex;
-justify-content:center;
-flex-wrap:wrap;
-margin-top:15px;
-}
-
 .status{
 margin-top:10px;
-font-size:18px;
-font-weight:bold;
-}
-
-.aviso{
-margin-top:10px;
-color:#00ffcc;
 font-weight:bold;
 }
 </style>
 </head>
 <body>
 
-<header>🎲 Dominó Online Pro</header>
+<header>🎲 Dominó Online</header>
 
 <div class="container">
 
+<input id="nomeInput" placeholder="Seu nome">
+<br>
 <input id="salaInput" placeholder="Código da sala">
+<br>
 <button onclick="criarSala()">Criar Sala</button>
 <button onclick="entrarSala()">Entrar</button>
 
 <div class="status" id="status"></div>
-<div class="aviso" id="aviso"></div>
+<div id="nomes"></div>
 
 <h3>Mesa</h3>
 <div id="mesa"></div>
@@ -123,6 +111,7 @@ const db = getDatabase(app);
 let sala="";
 let jogador="";
 let minhaMao=[];
+let meuNome="";
 
 function gerarPecas(){
 let pecas=[];
@@ -135,18 +124,21 @@ return pecas.sort(()=>Math.random()-0.5);
 }
 
 window.criarSala = async function(){
+meuNome=document.getElementById("nomeInput").value;
+if(!meuNome){ alert("Digite seu nome"); return; }
+
 sala=Math.random().toString(36).substring(2,7).toUpperCase();
 jogador="jogador1";
 
 document.getElementById("salaInput").value=sala;
-document.getElementById("status").innerText="Aguardando jogador 2...";
-document.getElementById("aviso").innerText="Compartilhe o código";
 
 let pecas=gerarPecas();
 let mao1=pecas.splice(0,7);
 let mao2=pecas.splice(0,7);
 
 await set(ref(db,"salas/"+sala),{
+nome1:meuNome,
+nome2:null,
 jogador1:mao1,
 jogador2:mao2,
 mesa:[],
@@ -154,26 +146,29 @@ vez:"jogador1",
 status:"esperando"
 });
 
+document.getElementById("status").innerText="Aguardando jogador 2...";
 escutar();
 }
 
 window.entrarSala = async function(){
+meuNome=document.getElementById("nomeInput").value;
+if(!meuNome){ alert("Digite seu nome"); return; }
+
 sala=document.getElementById("salaInput").value;
 
 const snap=await get(ref(db,"salas/"+sala));
-
 if(!snap.exists()){
-alert("Sala não encontrada ❌");
+alert("Sala não encontrada");
 return;
 }
 
 jogador="jogador2";
 
 await update(ref(db,"salas/"+sala),{
+nome2:meuNome,
 status:"jogando"
 });
 
-document.getElementById("status").innerText="Partida iniciada!";
 escutar();
 }
 
@@ -182,14 +177,17 @@ onValue(ref(db,"salas/"+sala),(snap)=>{
 let data=snap.val();
 if(!data) return;
 
-minhaMao=data[jogador];
+document.getElementById("nomes").innerText =
+data.nome1 + " vs " + (data.nome2 ? data.nome2 : "Aguardando...");
 
+if(!data.nome2){
+document.getElementById("status").innerText="Esperando adversário...";
+return;
+}
+
+minhaMao=data[jogador];
 renderMesa(data.mesa);
 renderMao();
-
-if(data.status==="jogando"){
-document.getElementById("aviso").innerText="Jogo em andamento";
-}
 
 if(data.vez===jogador){
 document.getElementById("status").innerText="Sua vez";
@@ -197,7 +195,7 @@ document.getElementById("status").innerText="Sua vez";
 document.getElementById("status").innerText="Vez do adversário";
 }
 
-if(minhaMao && minhaMao.length===0){
+if(minhaMao.length===0){
 alert("🏆 Você venceu!");
 }
 });
@@ -217,8 +215,6 @@ div.appendChild(el);
 function renderMao(){
 let div=document.getElementById("mao");
 div.innerHTML="";
-if(!minhaMao) return;
-
 minhaMao.forEach((p,i)=>{
 let el=document.createElement("div");
 el.className="peca";

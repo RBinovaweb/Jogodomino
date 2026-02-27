@@ -74,12 +74,6 @@ font-size:18px;
 font-weight:bold;
 }
 
-.info{
-margin-top:5px;
-font-size:14px;
-opacity:0.9;
-}
-
 .aviso{
 margin-top:10px;
 color:#00ffcc;
@@ -97,7 +91,6 @@ font-weight:bold;
 <button onclick="criarSala()">Criar Sala</button>
 <button onclick="entrarSala()">Entrar</button>
 
-<div class="info" id="codigoSala"></div>
 <div class="status" id="status"></div>
 <div class="aviso" id="aviso"></div>
 
@@ -106,8 +99,6 @@ font-weight:bold;
 
 <h3>Sua Mão</h3>
 <div id="mao"></div>
-
-<div class="info" id="pecasAdversario"></div>
 
 </div>
 
@@ -148,16 +139,16 @@ sala=Math.random().toString(36).substring(2,7).toUpperCase();
 jogador="jogador1";
 
 document.getElementById("salaInput").value=sala;
-document.getElementById("codigoSala").innerText="Sala: "+sala;
 document.getElementById("status").innerText="Aguardando jogador 2...";
-document.getElementById("aviso").innerText="Compartilhe o código da sala";
+document.getElementById("aviso").innerText="Compartilhe o código";
 
 let pecas=gerarPecas();
 let mao1=pecas.splice(0,7);
+let mao2=pecas.splice(0,7);
 
 await set(ref(db,"salas/"+sala),{
 jogador1:mao1,
-jogador2:null,
+jogador2:mao2,
 mesa:[],
 vez:"jogador1",
 status:"esperando"
@@ -168,39 +159,21 @@ escutar();
 
 window.entrarSala = async function(){
 sala=document.getElementById("salaInput").value;
-if(!sala){
-alert("Digite o código da sala");
-return;
-}
 
-const salaRef=ref(db,"salas/"+sala);
-const snap=await get(salaRef);
+const snap=await get(ref(db,"salas/"+sala));
 
 if(!snap.exists()){
 alert("Sala não encontrada ❌");
 return;
 }
 
-let data=snap.val();
-
-if(data.jogador2){
-alert("Sala já está cheia 🚫");
-return;
-}
-
 jogador="jogador2";
 
-let pecasRestantes=gerarPecas();
-let mao2=pecasRestantes.splice(0,7);
-
-await update(salaRef,{
-jogador2:mao2,
+await update(ref(db,"salas/"+sala),{
 status:"jogando"
 });
 
-document.getElementById("codigoSala").innerText="Sala: "+sala;
-document.getElementById("aviso").innerText="Você entrou na sala!";
-
+document.getElementById("status").innerText="Partida iniciada!";
 escutar();
 }
 
@@ -209,28 +182,22 @@ onValue(ref(db,"salas/"+sala),(snap)=>{
 let data=snap.val();
 if(!data) return;
 
-if(data.jogador2){
-document.getElementById("aviso").innerText="Jogador 2 entrou! Partida iniciada 🎉";
-}
-
-minhaMao=data[jogador]||[];
+minhaMao=data[jogador];
 
 renderMesa(data.mesa);
 renderMao();
 
-document.getElementById("pecasAdversario").innerText=
-data.jogador2 ? 
-"Adversário tem "+(data[jogador==="jogador1"?"jogador2":"jogador1"]||[]).length+" peças"
-:
-"Aguardando adversário...";
-
-if(data.vez===jogador && data.jogador2){
-document.getElementById("status").innerText="Sua vez";
-}else{
-document.getElementById("status").innerText="Aguardando...";
+if(data.status==="jogando"){
+document.getElementById("aviso").innerText="Jogo em andamento";
 }
 
-if(minhaMao.length===0 && data.jogador2){
+if(data.vez===jogador){
+document.getElementById("status").innerText="Sua vez";
+}else{
+document.getElementById("status").innerText="Vez do adversário";
+}
+
+if(minhaMao && minhaMao.length===0){
 alert("🏆 Você venceu!");
 }
 });
@@ -250,6 +217,8 @@ div.appendChild(el);
 function renderMao(){
 let div=document.getElementById("mao");
 div.innerHTML="";
+if(!minhaMao) return;
+
 minhaMao.forEach((p,i)=>{
 let el=document.createElement("div");
 el.className="peca";
@@ -264,7 +233,7 @@ let salaRef=ref(db,"salas/"+sala);
 
 onValue(salaRef,(snap)=>{
 let data=snap.val();
-if(data.vez!==jogador || !data.jogador2) return;
+if(data.vez!==jogador) return;
 
 let mesa=data.mesa;
 let peca=minhaMao[index];

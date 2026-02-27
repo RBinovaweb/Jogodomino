@@ -8,46 +8,30 @@
 <style>
 body{
 margin:0;
-font-family:Arial, sans-serif;
-background:linear-gradient(135deg,#141e30,#243b55);
+font-family:Arial;
+background:#1e2a38;
 color:#fff;
 text-align:center;
 }
 
-header{
-padding:15px;
-font-size:22px;
-font-weight:bold;
-background:rgba(0,0,0,0.3);
-}
-
-.container{
-padding:15px;
-}
-
-input{
+input,button{
 padding:10px;
+margin:5px;
 border-radius:8px;
 border:none;
-margin:5px;
-width:200px;
 }
 
 button{
-padding:10px 18px;
-border:none;
-border-radius:8px;
-background:#00d4ff;
+background:#00c6ff;
 font-weight:bold;
 cursor:pointer;
-margin:5px;
 }
 
-#mesa, #mao{
+#mesa,#mao{
 display:flex;
 justify-content:center;
 flex-wrap:wrap;
-margin-top:15px;
+margin-top:20px;
 min-height:60px;
 }
 
@@ -57,44 +41,30 @@ color:#000;
 padding:10px;
 margin:5px;
 border-radius:6px;
-font-weight:bold;
 cursor:pointer;
-}
-
-.status{
-margin-top:10px;
 font-weight:bold;
-}
-
-.nomes{
-margin-top:10px;
-font-size:18px;
 }
 </style>
 </head>
 <body>
 
-<header>🎲 Dominó Online</header>
+<h2>🎲 Dominó Online</h2>
 
-<div class="container">
-
-<input id="nomeInput" placeholder="Seu nome">
+<input id="nome" placeholder="Seu nome">
 <br>
-<input id="salaInput" placeholder="Código da sala">
+<input id="sala" placeholder="Código da sala">
 <br>
-<button onclick="criarSala()">Criar Sala</button>
-<button onclick="entrarSala()">Entrar</button>
+<button onclick="criar()">Criar Sala</button>
+<button onclick="entrar()">Entrar</button>
 
-<div class="status" id="status"></div>
-<div class="nomes" id="nomes"></div>
+<h3 id="status"></h3>
+<h3 id="nomes"></h3>
 
 <h3>Mesa</h3>
 <div id="mesa"></div>
 
 <h3>Sua Mão</h3>
 <div id="mao"></div>
-
-</div>
 
 <script type="module">
 
@@ -114,67 +84,60 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-let sala="";
-let jogador="";
-let minhaMao=[];
-let meuNome="";
+let salaAtual = "";
+let lado = "";
+let mao = [];
 
-function gerarPecas(){
-let pecas=[];
+function gerar(){
+let p=[];
 for(let i=0;i<=6;i++){
 for(let j=i;j<=6;j++){
-pecas.push([i,j]);
+p.push([i,j]);
 }
 }
-return pecas.sort(()=>Math.random()-0.5);
+return p.sort(()=>Math.random()-0.5);
 }
 
-window.criarSala = async function(){
-meuNome=document.getElementById("nomeInput").value.trim();
-if(!meuNome) return alert("Digite seu nome");
+window.criar = async function(){
 
-sala=Math.random().toString(36).substring(2,7).toUpperCase();
-jogador="jogador1";
+const nome=document.getElementById("nome").value.trim();
+if(!nome) return alert("Digite seu nome");
 
-localStorage.setItem("sala",sala);
-localStorage.setItem("jogador",jogador);
+lado="j1";
+salaAtual=Math.random().toString(36).substring(2,6).toUpperCase();
+document.getElementById("sala").value=salaAtual;
 
-document.getElementById("salaInput").value=sala;
-
-let pecas=gerarPecas();
+let pecas=gerar();
 let mao1=pecas.splice(0,7);
 let mao2=pecas.splice(0,7);
 
-await set(ref(db,"salas/"+sala),{
-nome1:meuNome,
+await set(ref(db,"salas/"+salaAtual),{
+nome1:nome,
 nome2:null,
-jogador1:mao1,
-jogador2:mao2,
+j1:mao1,
+j2:mao2,
 mesa:[],
-vez:"jogador1",
-status:"esperando"
+vez:"j1"
 });
 
 escutar();
 }
 
-window.entrarSala = async function(){
-meuNome=document.getElementById("nomeInput").value.trim();
-if(!meuNome) return alert("Digite seu nome");
+window.entrar = async function(){
 
-sala=document.getElementById("salaInput").value.trim();
+const nome=document.getElementById("nome").value.trim();
+if(!nome) return alert("Digite seu nome");
 
-const snap=await get(ref(db,"salas/"+sala));
+salaAtual=document.getElementById("sala").value.trim();
+if(!salaAtual) return alert("Digite a sala");
+
+const snap=await get(ref(db,"salas/"+salaAtual));
 if(!snap.exists()) return alert("Sala não encontrada");
 
-jogador="jogador2";
+lado="j2";
 
-localStorage.setItem("sala",sala);
-localStorage.setItem("jogador",jogador);
-
-await update(ref(db,"salas/"+sala),{
-nome2:meuNome,
-status:"jogando"
+await update(ref(db,"salas/"+salaAtual),{
+nome2:nome
 });
 
 escutar();
@@ -182,45 +145,40 @@ escutar();
 
 function escutar(){
 
-sala=localStorage.getItem("sala");
-jogador=localStorage.getItem("jogador");
-
-if(!sala || !jogador) return;
-
-onValue(ref(db,"salas/"+sala),(snap)=>{
-let data=snap.val();
-if(!data) return;
+onValue(ref(db,"salas/"+salaAtual),(snap)=>{
+let d=snap.val();
+if(!d) return;
 
 document.getElementById("nomes").innerText =
-data.nome1 + " vs " + (data.nome2 ? data.nome2 : "Aguardando...");
+d.nome1+" vs "+(d.nome2?d.nome2:"Aguardando");
 
-if(!data.nome2){
-document.getElementById("status").innerText="Esperando adversário...";
+if(!d.nome2){
+document.getElementById("status").innerText="Esperando jogador 2...";
 return;
 }
 
-minhaMao=data[jogador];
-if(!minhaMao) return;
+mao=d[lado];
 
-renderMesa(data.mesa);
+if(!mao){
+document.getElementById("status").innerText="Erro ao carregar mão";
+return;
+}
+
+renderMesa(d.mesa);
 renderMao();
 
-if(data.vez===jogador){
+if(d.vez===lado){
 document.getElementById("status").innerText="Sua vez";
 }else{
 document.getElementById("status").innerText="Vez do adversário";
 }
-
-if(minhaMao.length===0){
-alert("🏆 Você venceu!");
-}
 });
 }
 
-function renderMesa(mesa){
-let div=document.getElementById("mesa");
+function renderMesa(m){
+const div=document.getElementById("mesa");
 div.innerHTML="";
-mesa.forEach(p=>{
+m.forEach(p=>{
 let el=document.createElement("div");
 el.className="peca";
 el.innerText=p[0]+"|"+p[1];
@@ -229,9 +187,9 @@ div.appendChild(el);
 }
 
 function renderMao(){
-let div=document.getElementById("mao");
+const div=document.getElementById("mao");
 div.innerHTML="";
-minhaMao.forEach((p,i)=>{
+mao.forEach((p,i)=>{
 let el=document.createElement("div");
 el.className="peca";
 el.innerText=p[0]+"|"+p[1];
@@ -240,24 +198,23 @@ div.appendChild(el);
 });
 }
 
-function jogar(index){
-let salaRef=ref(db,"salas/"+sala);
+function jogar(i){
 
-onValue(salaRef,(snap)=>{
-let data=snap.val();
-if(data.vez!==jogador) return;
+onValue(ref(db,"salas/"+salaAtual),(snap)=>{
+let d=snap.val();
+if(d.vez!==lado) return;
 
-let mesa=data.mesa;
-let peca=minhaMao[index];
+let mesa=d.mesa;
+let peca=mao[i];
 
-if(mesa.length===0||mesa[mesa.length-1][1]===peca[0]){
+if(mesa.length===0 || mesa[mesa.length-1][1]===peca[0]){
 mesa.push(peca);
-minhaMao.splice(index,1);
+mao.splice(i,1);
 
-update(salaRef,{
-[jogador]:minhaMao,
+update(ref(db,"salas/"+salaAtual),{
+[lado]:mao,
 mesa:mesa,
-vez:jogador==="jogador1"?"jogador2":"jogador1"
+vez: lado==="j1"?"j2":"j1"
 });
 }
 },{onlyOnce:true});

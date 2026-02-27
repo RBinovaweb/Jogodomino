@@ -8,7 +8,7 @@
 <style>
 body{
 margin:0;
-font-family:Arial;
+font-family:Arial, sans-serif;
 background:linear-gradient(135deg,#141e30,#243b55);
 color:#fff;
 text-align:center;
@@ -30,6 +30,7 @@ padding:10px;
 border-radius:8px;
 border:none;
 margin:5px;
+width:200px;
 }
 
 button{
@@ -64,6 +65,11 @@ cursor:pointer;
 margin-top:10px;
 font-weight:bold;
 }
+
+.nomes{
+margin-top:10px;
+font-size:18px;
+}
 </style>
 </head>
 <body>
@@ -80,7 +86,7 @@ font-weight:bold;
 <button onclick="entrarSala()">Entrar</button>
 
 <div class="status" id="status"></div>
-<div id="nomes"></div>
+<div class="nomes" id="nomes"></div>
 
 <h3>Mesa</h3>
 <div id="mesa"></div>
@@ -124,11 +130,14 @@ return pecas.sort(()=>Math.random()-0.5);
 }
 
 window.criarSala = async function(){
-meuNome=document.getElementById("nomeInput").value;
-if(!meuNome){ alert("Digite seu nome"); return; }
+meuNome=document.getElementById("nomeInput").value.trim();
+if(!meuNome) return alert("Digite seu nome");
 
 sala=Math.random().toString(36).substring(2,7).toUpperCase();
 jogador="jogador1";
+
+localStorage.setItem("sala",sala);
+localStorage.setItem("jogador",jogador);
 
 document.getElementById("salaInput").value=sala;
 
@@ -146,23 +155,22 @@ vez:"jogador1",
 status:"esperando"
 });
 
-document.getElementById("status").innerText="Aguardando jogador 2...";
 escutar();
 }
 
 window.entrarSala = async function(){
-meuNome=document.getElementById("nomeInput").value;
-if(!meuNome){ alert("Digite seu nome"); return; }
+meuNome=document.getElementById("nomeInput").value.trim();
+if(!meuNome) return alert("Digite seu nome");
 
-sala=document.getElementById("salaInput").value;
+sala=document.getElementById("salaInput").value.trim();
 
 const snap=await get(ref(db,"salas/"+sala));
-if(!snap.exists()){
-alert("Sala não encontrada");
-return;
-}
+if(!snap.exists()) return alert("Sala não encontrada");
 
 jogador="jogador2";
+
+localStorage.setItem("sala",sala);
+localStorage.setItem("jogador",jogador);
 
 await update(ref(db,"salas/"+sala),{
 nome2:meuNome,
@@ -173,6 +181,12 @@ escutar();
 }
 
 function escutar(){
+
+sala=localStorage.getItem("sala");
+jogador=localStorage.getItem("jogador");
+
+if(!sala || !jogador) return;
+
 onValue(ref(db,"salas/"+sala),(snap)=>{
 let data=snap.val();
 if(!data) return;
@@ -186,6 +200,8 @@ return;
 }
 
 minhaMao=data[jogador];
+if(!minhaMao) return;
+
 renderMesa(data.mesa);
 renderMao();
 

@@ -77,7 +77,13 @@ font-weight:bold;
 .info{
 margin-top:5px;
 font-size:14px;
-opacity:0.8;
+opacity:0.9;
+}
+
+.aviso{
+margin-top:10px;
+color:#00ffcc;
+font-weight:bold;
 }
 </style>
 </head>
@@ -93,6 +99,7 @@ opacity:0.8;
 
 <div class="info" id="codigoSala"></div>
 <div class="status" id="status"></div>
+<div class="aviso" id="aviso"></div>
 
 <h3>Mesa</h3>
 <div id="mesa"></div>
@@ -107,7 +114,7 @@ opacity:0.8;
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
+import { getDatabase, ref, set, get, onValue, update } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBQqW2RRzy44R-CzgsdGHWBv0rr3ZVL-Ls",
@@ -136,31 +143,64 @@ pecas.push([i,j]);
 return pecas.sort(()=>Math.random()-0.5);
 }
 
-window.criarSala = function(){
+window.criarSala = async function(){
 sala=Math.random().toString(36).substring(2,7).toUpperCase();
 jogador="jogador1";
+
 document.getElementById("salaInput").value=sala;
 document.getElementById("codigoSala").innerText="Sala: "+sala;
+document.getElementById("status").innerText="Aguardando jogador 2...";
+document.getElementById("aviso").innerText="Compartilhe o código da sala";
 
 let pecas=gerarPecas();
 let mao1=pecas.splice(0,7);
-let mao2=pecas.splice(0,7);
 
-set(ref(db,"salas/"+sala),{
+await set(ref(db,"salas/"+sala),{
 jogador1:mao1,
-jogador2:mao2,
+jogador2:null,
 mesa:[],
 vez:"jogador1",
-status:"jogando"
+status:"esperando"
 });
 
 escutar();
 }
 
-window.entrarSala = function(){
+window.entrarSala = async function(){
 sala=document.getElementById("salaInput").value;
+if(!sala){
+alert("Digite o código da sala");
+return;
+}
+
+const salaRef=ref(db,"salas/"+sala);
+const snap=await get(salaRef);
+
+if(!snap.exists()){
+alert("Sala não encontrada ❌");
+return;
+}
+
+let data=snap.val();
+
+if(data.jogador2){
+alert("Sala já está cheia 🚫");
+return;
+}
+
 jogador="jogador2";
+
+let pecasRestantes=gerarPecas();
+let mao2=pecasRestantes.splice(0,7);
+
+await update(salaRef,{
+jogador2:mao2,
+status:"jogando"
+});
+
 document.getElementById("codigoSala").innerText="Sala: "+sala;
+document.getElementById("aviso").innerText="Você entrou na sala!";
+
 escutar();
 }
 
@@ -169,20 +209,28 @@ onValue(ref(db,"salas/"+sala),(snap)=>{
 let data=snap.val();
 if(!data) return;
 
+if(data.jogador2){
+document.getElementById("aviso").innerText="Jogador 2 entrou! Partida iniciada 🎉";
+}
+
 minhaMao=data[jogador]||[];
+
 renderMesa(data.mesa);
 renderMao();
 
 document.getElementById("pecasAdversario").innerText=
-"Adversário tem "+(data[jogador==="jogador1"?"jogador2":"jogador1"]||[]).length+" peças";
+data.jogador2 ? 
+"Adversário tem "+(data[jogador==="jogador1"?"jogador2":"jogador1"]||[]).length+" peças"
+:
+"Aguardando adversário...";
 
-if(data.vez===jogador){
+if(data.vez===jogador && data.jogador2){
 document.getElementById("status").innerText="Sua vez";
 }else{
-document.getElementById("status").innerText="Aguardando adversário...";
+document.getElementById("status").innerText="Aguardando...";
 }
 
-if(minhaMao.length===0){
+if(minhaMao.length===0 && data.jogador2){
 alert("🏆 Você venceu!");
 }
 });
@@ -216,7 +264,7 @@ let salaRef=ref(db,"salas/"+sala);
 
 onValue(salaRef,(snap)=>{
 let data=snap.val();
-if(data.vez!==jogador) return;
+if(data.vez!==jogador || !data.jogador2) return;
 
 let mesa=data.mesa;
 let peca=minhaMao[index];
